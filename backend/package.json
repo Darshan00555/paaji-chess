@@ -1,0 +1,23 @@
+{
+  "name": "paaji-chess",
+  "version": "1.0.0",
+  "description": "Real-time multiplayer Paaji Chess with mobile-first UI.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "chess",
+    "socket.io",
+    "multiplayer",
+    "mobile-first"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "chess.js": "^1.4.0",
+    "express": "^5.1.0",
+    "socket.io": "^4.8.1"
+  }
+}

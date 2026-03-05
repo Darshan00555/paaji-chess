@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Paaji Chess | Multiplayer Arena</title>
+    <meta
+      name="description"
+      content="Play Paaji Chess with friends in a real-time multiplayer arena. Mobile first, desktop ready."
+    />
+    <meta name="paaji-socket-url" content="" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-orb orb-a"></div>
+    <div class="bg-orb orb-b"></div>
+    <div class="bg-grid"></div>
+
+    <main class="app-shell">
+      <section id="lobby-panel" class="panel lobby-panel">
+        <p class="eyebrow">PAAJI CHESS</p>
+        <h1>Extreme Multiplayer Chess Arena</h1>
+        <p class="subtext">
+          Dost ke saath real-time match, mobile pe smooth gameplay, desktop pe full control.
+        </p>
+
+        <label class="field">
+          <span>Nickname</span>
+          <input id="nickname-input" maxlength="24" placeholder="Enter your player name" />
+        </label>
+
+        <div class="lobby-actions">
+          <form id="create-room-form" class="action-card">
+            <h2>Create Room</h2>
+            <p>New private room banao and code share karo.</p>
+            <button type="submit" class="btn btn-primary">Create New Room</button>
+          </form>
+
+          <form id="join-room-form" class="action-card">
+            <h2>Join Friend</h2>
+            <p>Friend ka room code dalo and turant connect ho jao.</p>
+            <label class="field">
+              <span>Room Code</span>
+              <input id="room-code-input" maxlength="6" placeholder="ABC123" />
+            </label>
+            <button type="submit" class="btn btn-secondary">Join Room</button>
+          </form>
+        </div>
+
+        <div class="tips">
+          <p>1. White player room create karta hai.</p>
+          <p>2. Black player same code se join karta hai.</p>
+          <p>3. Extra friends spectator mode me dekh sakte hain.</p>
+        </div>
+      </section>
+
+      <section id="game-shell" class="game-shell">
+        <header class="panel top-bar">
+          <div class="room-chip">
+            <span class="label">Room</span>
+            <strong id="room-code-text">------</strong>
+            <button id="copy-room-btn" class="chip-btn" type="button">Copy</button>
+          </div>
+
+          <div id="role-pill" class="role-pill">Spectator</div>
+
+          <div id="status-text" class="status-text">Waiting for players...</div>
+
+          <div class="top-actions">
+            <button id="flip-board-btn" class="btn btn-ghost" type="button">Flip</button>
+            <button id="resign-btn" class="btn btn-danger" type="button">Resign</button>
+            <button id="rematch-btn" class="btn btn-secondary" type="button">Rematch</button>
+          </div>
+        </header>
+
+        <div class="game-grid">
+          <section class="panel board-panel">
+            <div class="player-strip">
+              <article id="white-card" class="player-card white-side">
+                <h3>White</h3>
+                <p id="white-player-name">Waiting...</p>
+                <span id="white-connection-dot" class="connection-dot offline"></span>
+              </article>
+
+              <article id="black-card" class="player-card black-side">
+                <h3>Black</h3>
+                <p id="black-player-name">Waiting...</p>
+                <span id="black-connection-dot" class="connection-dot offline"></span>
+              </article>
+            </div>
+
+            <div id="board" class="board" aria-label="Chess board"></div>
+            <p id="turn-hint" class="turn-hint">Join a room to start playing.</p>
+          </section>
+
+          <aside class="side-column">
+            <section class="panel capture-panel">
+              <h3>Captured Pieces</h3>
+              <div class="capture-line">
+                <span>White Took</span>
+                <div id="white-captures" class="capture-pieces"></div>
+              </div>
+              <div class="capture-line">
+                <span>Black Took</span>
+                <div id="black-captures" class="capture-pieces"></div>
+              </div>
+            </section>
+
+            <section class="panel moves-panel">
+              <div class="moves-head">
+                <h3>Move List</h3>
+                <span id="spectator-count" class="spectator-chip">0 spectators</span>
+              </div>
+              <ol id="move-list" class="move-list"></ol>
+            </section>
+
+            <section class="panel chat-panel">
+              <h3>Arena Chat</h3>
+              <div id="chat-log" class="chat-log"></div>
+              <form id="chat-form" class="chat-form">
+                <input id="chat-input" maxlength="180" placeholder="Type message..." />
+                <button class="btn btn-primary" type="submit">Send</button>
+              </form>
+            </section>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <div id="promotion-modal" class="promotion-modal hidden" aria-hidden="true">
+      <div class="panel promotion-card">
+        <h3>Choose Promotion</h3>
+        <p>Pawn ko kis piece me convert karna hai?</p>
+        <div id="promotion-options" class="promotion-options"></div>
+        <button id="promotion-cancel-btn" type="button" class="btn btn-ghost">Cancel</button>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
