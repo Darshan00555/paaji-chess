@@ -82,6 +82,7 @@ const refs = {
   flipBoardBtn: document.getElementById("flip-board-btn"),
   resignBtn: document.getElementById("resign-btn"),
   rematchBtn: document.getElementById("rematch-btn"),
+  leaveRoomBtn: document.getElementById("leave-room-btn"),
   boardThemeSelect: document.getElementById("board-theme-select"),
   pieceThemeSelect: document.getElementById("piece-theme-select"),
   pieceModeSelect: document.getElementById("piece-mode-select"),
@@ -1003,6 +1004,22 @@ function resetToLobby() {
   deactivateGameUI();
 }
 
+function leaveRoomToLobby(showMessage = true) {
+  const hadRoom = Boolean(state.roomCode);
+  if (hadRoom) {
+    socket.emit("leave-room");
+  }
+
+  clearSession();
+  state.sessionRestoreAttempted = true;
+  resetToLobby();
+  refs.roomCodeInput.value = "";
+
+  if (showMessage && hadRoom) {
+    showToast("Returned to lobby.");
+  }
+}
+
 refs.createRoomForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const name = sanitizeName(refs.nicknameInput.value);
@@ -1105,6 +1122,20 @@ refs.rematchBtn.addEventListener("click", () => {
   socket.emit("request-rematch");
 });
 
+refs.leaveRoomBtn.addEventListener("click", () => {
+  if (!state.roomCode) {
+    resetToLobby();
+    return;
+  }
+
+  const confirmLeave = window.confirm("Leave current room and go back to lobby?");
+  if (!confirmLeave) {
+    return;
+  }
+
+  leaveRoomToLobby(true);
+});
+
 refs.copyRoomBtn.addEventListener("click", async () => {
   if (!state.roomCode) {
     return;
@@ -1129,7 +1160,7 @@ refs.promotionModal.addEventListener("click", (event) => {
 });
 
 refs.resultCloseBtn.addEventListener("click", () => {
-  closeResultModal();
+  leaveRoomToLobby(true);
 });
 
 refs.resultModal.addEventListener("click", (event) => {
