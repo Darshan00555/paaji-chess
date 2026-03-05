@@ -26,7 +26,7 @@
     <div class="bg-orb orb-b"></div>
     <div class="bg-grid"></div>
 
-    <main class="app-shell">
+    <main id="app-shell" class="app-shell">
       <section id="lobby-panel" class="panel lobby-panel">
         <p class="eyebrow">PAAJI CHESS</p>
         <h1>Extreme Multiplayer Chess Arena</h1>
@@ -77,9 +77,42 @@
           <div id="status-text" class="status-text">Waiting for players...</div>
 
           <div class="top-actions">
+            <button id="fullscreen-btn" class="btn btn-ghost" type="button" title="Toggle fullscreen">⛶</button>
             <button id="flip-board-btn" class="btn btn-ghost" type="button">Flip</button>
             <button id="resign-btn" class="btn btn-danger" type="button">Resign</button>
             <button id="rematch-btn" class="btn btn-secondary" type="button">Rematch</button>
+          </div>
+
+          <div class="top-settings">
+            <label class="setting-field">
+              <span>Board</span>
+              <select id="board-theme-select">
+                <option value="classic">Classic Wood</option>
+                <option value="emerald">Emerald Pro</option>
+                <option value="royal">Royal Blue</option>
+                <option value="carbon">Carbon Night</option>
+                <option value="sunset">Sunset Arena</option>
+              </select>
+            </label>
+
+            <label class="setting-field">
+              <span>Pieces</span>
+              <select id="piece-theme-select">
+                <option value="classic">Classic</option>
+                <option value="ivory">Ivory Gold</option>
+                <option value="steel">Steel</option>
+                <option value="neon">Neon</option>
+                <option value="obsidian">Obsidian</option>
+              </select>
+            </label>
+
+            <label class="setting-field">
+              <span>Mode</span>
+              <select id="piece-mode-select">
+                <option value="3d">3D</option>
+                <option value="2d">2D</option>
+              </select>
+            </label>
           </div>
         </header>
 
@@ -121,6 +154,12 @@
                 <h3>Move List</h3>
                 <span id="spectator-count" class="spectator-chip">0 spectators</span>
               </div>
+              <div class="move-nav">
+                <button id="move-prev-btn" class="btn btn-ghost" type="button">Prev</button>
+                <button id="move-next-btn" class="btn btn-ghost" type="button">Next</button>
+                <button id="move-live-btn" class="btn btn-primary" type="button">Go Live</button>
+              </div>
+              <p id="move-review-text" class="move-review-text">Live board</p>
               <ol id="move-list" class="move-list"></ol>
             </section>
 

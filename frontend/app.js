@@ -2,6 +2,10 @@ const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const RANKS_ASC = [1, 2, 3, 4, 5, 6, 7, 8];
 const RANKS_DESC = [8, 7, 6, 5, 4, 3, 2, 1];
 const SESSION_KEY = "paaji_chess_session_v1";
+const PREFERENCES_KEY = "paaji_chess_preferences_v1";
+const BOARD_THEMES = ["classic", "emerald", "royal", "carbon", "sunset"];
+const PIECE_THEMES = ["classic", "ivory", "steel", "neon", "obsidian"];
+const PIECE_MODES = ["3d", "2d"];
 
 const PIECE_SYMBOLS = {
   K: "♔",
@@ -55,9 +59,14 @@ const state = {
   sessionRestoreAttempted: false,
   resultModalVisible: false,
   lastResultSignature: "",
+  reviewPly: null,
+  boardTheme: "classic",
+  pieceTheme: "classic",
+  pieceMode: "3d",
 };
 
 const refs = {
+  appShell: document.getElementById("app-shell"),
   lobbyPanel: document.getElementById("lobby-panel"),
   gameShell: document.getElementById("game-shell"),
   nicknameInput: document.getElementById("nickname-input"),
@@ -69,9 +78,13 @@ const refs = {
   copyRoomBtn: document.getElementById("copy-room-btn"),
   rolePill: document.getElementById("role-pill"),
   statusText: document.getElementById("status-text"),
+  fullscreenBtn: document.getElementById("fullscreen-btn"),
   flipBoardBtn: document.getElementById("flip-board-btn"),
   resignBtn: document.getElementById("resign-btn"),
   rematchBtn: document.getElementById("rematch-btn"),
+  boardThemeSelect: document.getElementById("board-theme-select"),
+  pieceThemeSelect: document.getElementById("piece-theme-select"),
+  pieceModeSelect: document.getElementById("piece-mode-select"),
   whitePlayerName: document.getElementById("white-player-name"),
   blackPlayerName: document.getElementById("black-player-name"),
   whiteConnectionDot: document.getElementById("white-connection-dot"),
@@ -80,6 +93,10 @@ const refs = {
   whiteCaptures: document.getElementById("white-captures"),
   blackCaptures: document.getElementById("black-captures"),
   spectatorCount: document.getElementById("spectator-count"),
+  movePrevBtn: document.getElementById("move-prev-btn"),
+  moveNextBtn: document.getElementById("move-next-btn"),
+  moveLiveBtn: document.getElementById("move-live-btn"),
+  moveReviewText: document.getElementById("move-review-text"),
   moveList: document.getElementById("move-list"),
   chatLog: document.getElementById("chat-log"),
   chatForm: document.getElementById("chat-form"),
@@ -163,6 +180,54 @@ function clearSession() {
   localStorage.removeItem(SESSION_KEY);
 }
 
+function normalizeTheme(value, list, fallback) {
+  return list.includes(value) ? value : fallback;
+}
+
+function readPreferences() {
+  try {
+    const raw = localStorage.getItem(PREFERENCES_KEY);
+    if (!raw) {
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+    state.boardTheme = normalizeTheme(parsed.boardTheme, BOARD_THEMES, "classic");
+    state.pieceTheme = normalizeTheme(parsed.pieceTheme, PIECE_THEMES, "classic");
+    state.pieceMode = normalizeTheme(parsed.pieceMode, PIECE_MODES, "3d");
+  } catch {
+    state.boardTheme = "classic";
+    state.pieceTheme = "classic";
+    state.pieceMode = "3d";
+  }
+}
+
+function writePreferences() {
+  const payload = JSON.stringify({
+    boardTheme: state.boardTheme,
+    pieceTheme: state.pieceTheme,
+    pieceMode: state.pieceMode,
+  });
+
+  localStorage.setItem(PREFERENCES_KEY, payload);
+}
+
+function applyPreferences() {
+  document.body.dataset.boardTheme = state.boardTheme;
+  document.body.dataset.pieceTheme = state.pieceTheme;
+  document.body.dataset.pieceMode = state.pieceMode;
+
+  if (refs.boardThemeSelect) {
+    refs.boardThemeSelect.value = state.boardTheme;
+  }
+  if (refs.pieceThemeSelect) {
+    refs.pieceThemeSelect.value = state.pieceTheme;
+  }
+  if (refs.pieceModeSelect) {
+    refs.pieceModeSelect.value = state.pieceMode;
+  }
+}
+
 function showToast(message) {
   if (!message) {
     return;
@@ -182,6 +247,37 @@ function activateGameUI() {
 
 function deactivateGameUI() {
   document.body.classList.remove("in-game");
+}
+
+function updateFullscreenButton() {
+  if (!refs.fullscreenBtn) {
+    return;
+  }
+
+  const supported = Boolean(document.fullscreenEnabled);
+  const active = document.fullscreenElement === refs.appShell;
+
+  refs.fullscreenBtn.disabled = !supported;
+  refs.fullscreenBtn.textContent = active ? "⤫" : "⛶";
+  refs.fullscreenBtn.title = active ? "Exit fullscreen" : "Enter fullscreen";
+  document.body.classList.toggle("is-fullscreen", active);
+}
+
+async function toggleFullscreen() {
+  if (!document.fullscreenEnabled || !refs.appShell) {
+    showToast("Fullscreen is not supported on this device.");
+    return;
+  }
+
+  try {
+    if (document.fullscreenElement === refs.appShell) {
+      await document.exitFullscreen();
+      return;
+    }
+    await refs.appShell.requestFullscreen({ navigationUI: "hide" });
+  } catch {
+    showToast("Unable to toggle fullscreen.");
+  }
 }
 
 function boardOrientation() {
@@ -224,11 +320,130 @@ function getSquareTone(square) {
   return (fileIndex + rankIndex) % 2 === 1 ? "light" : "dark";
 }
 
+function totalPlyCount() {
+  return state.gameState?.history?.length ?? 0;
+}
+
+function clampReviewPly(value) {
+  const total = totalPlyCount();
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return total;
+  }
+  return Math.max(0, Math.min(total, Math.floor(value)));
+}
+
+function isReviewMode() {
+  if (state.reviewPly === null) {
+    return false;
+  }
+
+  return clampReviewPly(state.reviewPly) !== totalPlyCount();
+}
+
+function activePly() {
+  if (state.reviewPly === null) {
+    return totalPlyCount();
+  }
+
+  return clampReviewPly(state.reviewPly);
+}
+
+function goLiveBoard() {
+  state.reviewPly = null;
+  clearSelection();
+}
+
+function openReviewPly(ply) {
+  const clamped = clampReviewPly(ply);
+  state.reviewPly = clamped >= totalPlyCount() ? null : clamped;
+  clearSelection();
+}
+
+function previousReviewPly() {
+  const total = totalPlyCount();
+  if (total === 0) {
+    return;
+  }
+
+  if (state.reviewPly === null) {
+    openReviewPly(total - 1);
+    return;
+  }
+
+  openReviewPly(Math.max(0, state.reviewPly - 1));
+}
+
+function nextReviewPly() {
+  const total = totalPlyCount();
+  if (total === 0) {
+    return;
+  }
+
+  if (state.reviewPly === null) {
+    return;
+  }
+
+  const next = state.reviewPly + 1;
+  if (next >= total) {
+    goLiveBoard();
+    return;
+  }
+
+  openReviewPly(next);
+}
+
+function getDisplayFen() {
+  if (!state.gameState) {
+    return "";
+  }
+
+  const ply = activePly();
+  const timeline = Array.isArray(state.gameState.timeline) ? state.gameState.timeline : [];
+  return timeline[ply] || state.gameState.fen;
+}
+
+function getDisplayHistory() {
+  const history = state.gameState?.history || [];
+  return history.slice(0, activePly());
+}
+
+function computeCapturedFromHistory(history) {
+  const captured = {
+    white: [],
+    black: [],
+  };
+
+  for (const move of history) {
+    if (!move?.captured) {
+      continue;
+    }
+
+    if (move.color === "w") {
+      captured.white.push(move.captured);
+    } else {
+      captured.black.push(move.captured);
+    }
+  }
+
+  return captured;
+}
+
 function getLastMoveSquares() {
-  if (!state.gameState || !state.gameState.history.length) {
+  if (!state.gameState) {
     return null;
   }
-  const lastMove = state.gameState.history[state.gameState.history.length - 1];
+
+  const history = state.gameState.history || [];
+  const ply = activePly();
+  if (!history.length || ply <= 0) {
+    return null;
+  }
+
+  const lastMove = history[ply - 1];
+  if (!lastMove) {
+    return null;
+  }
+
   return {
     from: lastMove.from,
     to: lastMove.to,
@@ -252,7 +467,7 @@ function clearSelection() {
 }
 
 function isMyTurn() {
-  if (!state.gameState || !state.gameState.status) {
+  if (!state.gameState || !state.gameState.status || isReviewMode()) {
     return false;
   }
 
@@ -383,6 +598,11 @@ function handleSquareClick(square) {
     return;
   }
 
+  if (isReviewMode()) {
+    showToast("Review mode on hai. Live board pe jane ke liye Go Live dabao.");
+    return;
+  }
+
   if (state.gameState.status.state !== "active") {
     return;
   }
@@ -437,7 +657,7 @@ function renderBoard() {
     return;
   }
 
-  const boardMap = parseFenBoard(state.gameState.fen);
+  const boardMap = parseFenBoard(getDisplayFen());
   state.boardMap = boardMap;
   const fragment = document.createDocumentFragment();
 
@@ -447,7 +667,7 @@ function renderBoard() {
   const lastMove = getLastMoveSquares();
 
   let checkSquare = null;
-  if (state.gameState.status.state === "active" && state.gameState.status.check) {
+  if (!isReviewMode() && state.gameState.status.state === "active" && state.gameState.status.check) {
     checkSquare = findKingSquare(boardMap, state.gameState.status.turn);
   }
 
@@ -525,7 +745,7 @@ function renderPlayers() {
 }
 
 function renderCaptures() {
-  const captured = state.gameState?.captured || { white: [], black: [] };
+  const captured = computeCapturedFromHistory(getDisplayHistory());
 
   refs.whiteCaptures.innerHTML = "";
   refs.blackCaptures.innerHTML = "";
@@ -545,31 +765,93 @@ function renderCaptures() {
   }
 }
 
+function updateMoveReviewControls() {
+  const total = totalPlyCount();
+  const ply = activePly();
+  const review = isReviewMode();
+
+  refs.movePrevBtn.disabled = total === 0 || ply <= 0;
+  refs.moveNextBtn.disabled = total === 0 || !review;
+  refs.moveLiveBtn.disabled = !review;
+
+  if (review) {
+    refs.moveReviewText.textContent = `Review mode: move ${ply}/${total}`;
+    refs.moveReviewText.classList.add("active");
+  } else {
+    refs.moveReviewText.textContent = total > 0 ? `Live board: ${total} moves` : "Live board";
+    refs.moveReviewText.classList.remove("active");
+  }
+}
+
 function renderMoves() {
   const stickToBottom =
     refs.moveList.scrollTop + refs.moveList.clientHeight >= refs.moveList.scrollHeight - 28;
-  refs.moveList.innerHTML = "";
-  if (!state.gameState?.history?.length) {
-    return;
-  }
 
-  const history = state.gameState.history;
+  refs.moveList.innerHTML = "";
+  const history = state.gameState?.history || [];
+  const review = isReviewMode();
+  const selectedPly = activePly();
+
   for (let index = 0; index < history.length; index += 2) {
     const whiteMove = history[index];
     const blackMove = history[index + 1];
-    const moveNo = Math.floor(index / 2) + 1;
+    const whitePly = index + 1;
+    const blackPly = index + 2;
 
     const row = document.createElement("li");
     row.className = "move-row";
-    row.innerHTML = `
-      <span class="move-index">${moveNo}.</span>
-      <span>${whiteMove ? whiteMove.san : ""}</span>
-      <span>${blackMove ? blackMove.san : ""}</span>
-    `;
+
+    const moveIndex = document.createElement("span");
+    moveIndex.className = "move-index";
+    moveIndex.textContent = `${Math.floor(index / 2) + 1}.`;
+
+    const whiteCell = document.createElement("button");
+    whiteCell.type = "button";
+    whiteCell.className = "move-cell";
+    if (whiteMove) {
+      whiteCell.textContent = whiteMove.san;
+      if (review && selectedPly === whitePly) {
+        whiteCell.classList.add("active");
+      } else if (!review && selectedPly === whitePly) {
+        whiteCell.classList.add("recent");
+      }
+      whiteCell.addEventListener("click", () => {
+        openReviewPly(whitePly);
+        renderAll();
+      });
+    } else {
+      whiteCell.textContent = "—";
+      whiteCell.disabled = true;
+      whiteCell.classList.add("empty");
+    }
+
+    const blackCell = document.createElement("button");
+    blackCell.type = "button";
+    blackCell.className = "move-cell";
+    if (blackMove) {
+      blackCell.textContent = blackMove.san;
+      if (review && selectedPly === blackPly) {
+        blackCell.classList.add("active");
+      } else if (!review && selectedPly === blackPly) {
+        blackCell.classList.add("recent");
+      }
+      blackCell.addEventListener("click", () => {
+        openReviewPly(blackPly);
+        renderAll();
+      });
+    } else {
+      blackCell.textContent = "—";
+      blackCell.disabled = true;
+      blackCell.classList.add("empty");
+    }
+
+    row.append(moveIndex, whiteCell, blackCell);
     refs.moveList.appendChild(row);
   }
 
-  if (stickToBottom) {
+  updateMoveReviewControls();
+
+  if (stickToBottom || !review) {
     refs.moveList.scrollTop = refs.moveList.scrollHeight;
   }
 }
@@ -633,15 +915,21 @@ function updateRoleUI() {
 function updateActionStates() {
   const status = state.gameState?.status;
   const isPlayer = state.role === "player";
+  const liveBoard = !isReviewMode();
   const canRequestRematch = isPlayer && status?.state === "over";
 
-  refs.resignBtn.disabled = !(isPlayer && status?.state === "active");
-  refs.rematchBtn.disabled = !canRequestRematch;
+  refs.resignBtn.disabled = !(isPlayer && liveBoard && status?.state === "active");
+  refs.rematchBtn.disabled = !canRequestRematch || !liveBoard;
   refs.resultRematchBtn.disabled = !canRequestRematch;
   refs.resultRematchBtn.textContent = canRequestRematch ? "Request Rematch" : "Players can request rematch";
 }
 
 function updateTurnHint() {
+  if (isReviewMode()) {
+    refs.turnHint.textContent = "Review mode active. Go Live to play current move.";
+    return;
+  }
+
   if (!state.gameState?.status) {
     refs.turnHint.textContent = "Join a room to start playing.";
     return;
@@ -661,8 +949,14 @@ function updateTurnHint() {
 }
 
 function renderMeta() {
+  const review = isReviewMode();
+  const total = totalPlyCount();
+  const ply = activePly();
+
   refs.roomCodeText.textContent = state.roomCode || "------";
-  refs.statusText.textContent = formatStatus(state.gameState?.status);
+  refs.statusText.textContent = review
+    ? `Reviewing move ${ply}/${total}. Press Go Live for current position.`
+    : formatStatus(state.gameState?.status);
   refs.spectatorCount.textContent = `${state.gameState?.spectators ?? 0} spectators`;
   updateRoleUI();
   updateActionStates();
@@ -688,6 +982,7 @@ function resetToLobby() {
   state.boardMap = {};
   state.flipped = false;
   state.lastResultSignature = "";
+  state.reviewPly = null;
   closePromotion();
   closeResultModal();
   deactivateGameUI();
@@ -738,6 +1033,43 @@ refs.chatForm.addEventListener("submit", (event) => {
 refs.flipBoardBtn.addEventListener("click", () => {
   state.flipped = !state.flipped;
   renderBoard();
+});
+
+refs.fullscreenBtn.addEventListener("click", () => {
+  toggleFullscreen();
+});
+
+refs.boardThemeSelect.addEventListener("change", (event) => {
+  state.boardTheme = normalizeTheme(event.target.value, BOARD_THEMES, state.boardTheme);
+  applyPreferences();
+  writePreferences();
+});
+
+refs.pieceThemeSelect.addEventListener("change", (event) => {
+  state.pieceTheme = normalizeTheme(event.target.value, PIECE_THEMES, state.pieceTheme);
+  applyPreferences();
+  writePreferences();
+});
+
+refs.pieceModeSelect.addEventListener("change", (event) => {
+  state.pieceMode = normalizeTheme(event.target.value, PIECE_MODES, state.pieceMode);
+  applyPreferences();
+  writePreferences();
+});
+
+refs.movePrevBtn.addEventListener("click", () => {
+  previousReviewPly();
+  renderAll();
+});
+
+refs.moveNextBtn.addEventListener("click", () => {
+  nextReviewPly();
+  renderAll();
+});
+
+refs.moveLiveBtn.addEventListener("click", () => {
+  goLiveBoard();
+  renderAll();
 });
 
 refs.resignBtn.addEventListener("click", () => {
@@ -838,6 +1170,7 @@ socket.on("room-joined", (payload = {}) => {
   state.flipped = false;
   state.sessionRestoreAttempted = true;
   state.lastResultSignature = "";
+  state.reviewPly = null;
 
   refs.nicknameInput.value = state.name;
   refs.roomCodeInput.value = state.roomCode;
@@ -853,11 +1186,24 @@ socket.on("room-joined", (payload = {}) => {
 socket.on("game-state", (payload = {}) => {
   const previousStatus = state.gameState?.status;
   state.gameState = payload;
+
+  const total = totalPlyCount();
+  if (state.reviewPly !== null) {
+    state.reviewPly = clampReviewPly(state.reviewPly);
+    if (state.reviewPly >= total) {
+      state.reviewPly = null;
+    }
+  }
+
   renderAll();
   syncResultModal(previousStatus, payload);
 });
 
 socket.on("legal-moves", (payload = {}) => {
+  if (isReviewMode()) {
+    return;
+  }
+
   if (!state.selectedSquare || payload.square !== state.selectedSquare) {
     return;
   }
@@ -890,6 +1236,10 @@ window.addEventListener("keydown", (event) => {
   closeResultModal();
 });
 
+document.addEventListener("fullscreenchange", () => {
+  updateFullscreenButton();
+});
+
 function hydrateLobbyFromSession() {
   const session = readSession();
   if (!session) {
@@ -900,4 +1250,7 @@ function hydrateLobbyFromSession() {
   refs.roomCodeInput.value = session.roomCode;
 }
 
+readPreferences();
+applyPreferences();
+updateFullscreenButton();
 hydrateLobbyFromSession();

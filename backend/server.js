@@ -182,6 +182,26 @@ function computeCaptured(history) {
   return captured;
 }
 
+function buildTimeline(history) {
+  const replay = new Chess();
+  const timeline = [replay.fen()];
+
+  for (const move of history) {
+    if (!move || !move.san) {
+      continue;
+    }
+
+    try {
+      replay.move(move.san);
+      timeline.push(replay.fen());
+    } catch {
+      break;
+    }
+  }
+
+  return timeline;
+}
+
 function getGameStatus(game) {
   if (game.forcedResult) {
     return {
@@ -254,6 +274,7 @@ function getGameStatus(game) {
 
 function buildGameState(game) {
   const verboseHistory = game.chess.history({ verbose: true });
+  const timeline = buildTimeline(verboseHistory);
   const status = getGameStatus(game);
 
   return {
@@ -277,6 +298,7 @@ function buildGameState(game) {
       promotion: move.promotion || null,
       flags: move.flags,
     })),
+    timeline,
     captured: computeCaptured(verboseHistory),
     chat: game.chat.slice(-80),
     status,
