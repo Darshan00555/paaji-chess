@@ -3,12 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#081424" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>Paaji Chess | Multiplayer Arena</title>
     <meta
       name="description"
       content="Play Paaji Chess with friends in a real-time multiplayer arena. Mobile first, desktop ready."
     />
     <meta name="paaji-socket-url" content="https://paaji-chess.onrender.com" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="manifest" href="manifest.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -139,6 +143,19 @@
         <p>Pawn ko kis piece me convert karna hai?</p>
         <div id="promotion-options" class="promotion-options"></div>
         <button id="promotion-cancel-btn" type="button" class="btn btn-ghost">Cancel</button>
+      </div>
+    </div>
+
+    <div id="result-modal" class="result-modal hidden" aria-hidden="true">
+      <div class="panel result-card">
+        <p class="result-eyebrow">Match Result</p>
+        <h3 id="result-title">Game Over</h3>
+        <p id="result-summary" class="result-summary"></p>
+        <p id="result-detail" class="result-detail"></p>
+        <div class="result-actions">
+          <button id="result-close-btn" type="button" class="btn btn-ghost">Close</button>
+          <button id="result-rematch-btn" type="button" class="btn btn-secondary">Request Rematch</button>
+        </div>
       </div>
     </div>
 

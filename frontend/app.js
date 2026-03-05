@@ -53,6 +53,8 @@ const state = {
   promotionContext: null,
   toastTimer: null,
   sessionRestoreAttempted: false,
+  resultModalVisible: false,
+  lastResultSignature: "",
 };
 
 const refs = {
@@ -85,6 +87,12 @@ const refs = {
   promotionModal: document.getElementById("promotion-modal"),
   promotionOptions: document.getElementById("promotion-options"),
   promotionCancelBtn: document.getElementById("promotion-cancel-btn"),
+  resultModal: document.getElementById("result-modal"),
+  resultTitle: document.getElementById("result-title"),
+  resultSummary: document.getElementById("result-summary"),
+  resultDetail: document.getElementById("result-detail"),
+  resultCloseBtn: document.getElementById("result-close-btn"),
+  resultRematchBtn: document.getElementById("result-rematch-btn"),
   toast: document.getElementById("toast"),
 };
 
@@ -301,6 +309,75 @@ function closePromotion() {
   refs.promotionModal.setAttribute("aria-hidden", "true");
 }
 
+function getResultSignature(gameState) {
+  const status = gameState?.status;
+  if (!status || status.state !== "over") {
+    return "";
+  }
+
+  const moves = Array.isArray(gameState.history) ? gameState.history.length : 0;
+  const winner = status.winner || "draw";
+  const reason = status.reason || "result";
+  const roomCode = gameState.roomCode || state.roomCode || "";
+  return `${roomCode}:${winner}:${reason}:${moves}`;
+}
+
+function closeResultModal() {
+  state.resultModalVisible = false;
+  refs.resultModal.classList.add("hidden");
+  refs.resultModal.setAttribute("aria-hidden", "true");
+}
+
+function openResultModal(status) {
+  if (!status || status.state !== "over") {
+    return;
+  }
+
+  const reason = REASON_LABELS[status.reason] || status.reason || "result";
+  const isPlayer = state.role === "player" && Boolean(state.color);
+
+  if (status.winner) {
+    const winner = colorLabel(status.winner);
+    refs.resultTitle.textContent = `${winner} Wins`;
+    if (isPlayer) {
+      refs.resultSummary.textContent = state.color === status.winner ? "You won this game." : "You lost this game.";
+    } else {
+      refs.resultSummary.textContent = `${winner} won this game.`;
+    }
+  } else {
+    refs.resultTitle.textContent = "Game Drawn";
+    refs.resultSummary.textContent = isPlayer ? "This game ended in a draw." : "Match ended in a draw.";
+  }
+
+  refs.resultDetail.textContent = `Reason: ${reason}.`;
+  refs.resultModal.classList.remove("hidden");
+  refs.resultModal.setAttribute("aria-hidden", "false");
+  state.resultModalVisible = true;
+}
+
+function syncResultModal(previousStatus, nextGameState) {
+  const nextStatus = nextGameState?.status;
+  if (!nextStatus || nextStatus.state !== "over") {
+    state.lastResultSignature = "";
+    if (state.resultModalVisible) {
+      closeResultModal();
+    }
+    return;
+  }
+
+  const nextSignature = getResultSignature(nextGameState);
+  if (nextSignature === state.lastResultSignature) {
+    return;
+  }
+
+  const wasOverBefore = previousStatus?.state === "over";
+  state.lastResultSignature = nextSignature;
+
+  if (!wasOverBefore || !state.resultModalVisible) {
+    openResultModal(nextStatus);
+  }
+}
+
 function handleSquareClick(square) {
   if (!state.gameState || state.role !== "player" || !state.color) {
     return;
@@ -355,13 +432,14 @@ function handleSquareClick(square) {
 }
 
 function renderBoard() {
-  refs.board.innerHTML = "";
+  refs.board.replaceChildren();
   if (!state.gameState) {
     return;
   }
 
   const boardMap = parseFenBoard(state.gameState.fen);
   state.boardMap = boardMap;
+  const fragment = document.createDocumentFragment();
 
   const orientation = boardOrientation();
   const files = orientation === "white" ? FILES : [...FILES].reverse();
@@ -426,9 +504,11 @@ function renderBoard() {
       }
 
       button.addEventListener("click", () => handleSquareClick(square));
-      refs.board.appendChild(button);
+      fragment.appendChild(button);
     }
   }
+
+  refs.board.replaceChildren(fragment);
 }
 
 function renderPlayers() {
@@ -466,6 +546,8 @@ function renderCaptures() {
 }
 
 function renderMoves() {
+  const stickToBottom =
+    refs.moveList.scrollTop + refs.moveList.clientHeight >= refs.moveList.scrollHeight - 28;
   refs.moveList.innerHTML = "";
   if (!state.gameState?.history?.length) {
     return;
@@ -485,6 +567,10 @@ function renderMoves() {
       <span>${blackMove ? blackMove.san : ""}</span>
     `;
     refs.moveList.appendChild(row);
+  }
+
+  if (stickToBottom) {
+    refs.moveList.scrollTop = refs.moveList.scrollHeight;
   }
 }
 
@@ -547,9 +633,12 @@ function updateRoleUI() {
 function updateActionStates() {
   const status = state.gameState?.status;
   const isPlayer = state.role === "player";
+  const canRequestRematch = isPlayer && status?.state === "over";
 
   refs.resignBtn.disabled = !(isPlayer && status?.state === "active");
-  refs.rematchBtn.disabled = !(isPlayer && status?.state === "over");
+  refs.rematchBtn.disabled = !canRequestRematch;
+  refs.resultRematchBtn.disabled = !canRequestRematch;
+  refs.resultRematchBtn.textContent = canRequestRematch ? "Request Rematch" : "Players can request rematch";
 }
 
 function updateTurnHint() {
@@ -598,7 +687,9 @@ function resetToLobby() {
   state.legalMoves = [];
   state.boardMap = {};
   state.flipped = false;
+  state.lastResultSignature = "";
   closePromotion();
+  closeResultModal();
   deactivateGameUI();
 }
 
@@ -684,6 +775,31 @@ refs.promotionCancelBtn.addEventListener("click", () => {
   closePromotion();
 });
 
+refs.promotionModal.addEventListener("click", (event) => {
+  if (event.target === refs.promotionModal) {
+    closePromotion();
+  }
+});
+
+refs.resultCloseBtn.addEventListener("click", () => {
+  closeResultModal();
+});
+
+refs.resultModal.addEventListener("click", (event) => {
+  if (event.target === refs.resultModal) {
+    closeResultModal();
+  }
+});
+
+refs.resultRematchBtn.addEventListener("click", () => {
+  if (refs.resultRematchBtn.disabled) {
+    return;
+  }
+
+  socket.emit("request-rematch");
+  closeResultModal();
+});
+
 socket.on("connect", () => {
   const session = readSession();
 
@@ -721,20 +837,24 @@ socket.on("room-joined", (payload = {}) => {
   state.legalMoves = [];
   state.flipped = false;
   state.sessionRestoreAttempted = true;
+  state.lastResultSignature = "";
 
   refs.nicknameInput.value = state.name;
   refs.roomCodeInput.value = state.roomCode;
 
   writeSession();
   activateGameUI();
+  closeResultModal();
 
   const roleText = state.role === "player" && state.color ? colorLabel(state.color) : "Spectator";
   showToast(`Joined ${state.roomCode} as ${roleText}.`);
 });
 
 socket.on("game-state", (payload = {}) => {
+  const previousStatus = state.gameState?.status;
   state.gameState = payload;
   renderAll();
+  syncResultModal(previousStatus, payload);
 });
 
 socket.on("legal-moves", (payload = {}) => {
@@ -759,6 +879,15 @@ socket.on("error-message", (payload = {}) => {
 
 window.addEventListener("beforeunload", () => {
   socket.emit("leave-room");
+});
+
+window.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") {
+    return;
+  }
+
+  closePromotion();
+  closeResultModal();
 });
 
 function hydrateLobbyFromSession() {

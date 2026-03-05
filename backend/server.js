@@ -12,6 +12,7 @@ const CORS_ORIGINS = (process.env.CORS_ORIGIN || process.env.FRONTEND_ORIGIN || 
 const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const ROOM_CODE_LENGTH = 6;
 const ROOM_TTL_MS = 30 * 60 * 1000;
+const CHAT_THROTTLE_MS = 400;
 
 const games = new Map();
 const socketRegistry = new Map();
@@ -441,6 +442,7 @@ io.on("connection", (socket) => {
       role: "player",
       color: "w",
       name: playerName,
+      lastChatAt: 0,
     });
 
     socket.emit("room-joined", {
@@ -498,6 +500,7 @@ io.on("connection", (socket) => {
       role,
       color,
       name: playerName,
+      lastChatAt: 0,
     });
 
     socket.emit("room-joined", {
@@ -614,11 +617,18 @@ io.on("connection", (socket) => {
       return;
     }
 
+    const now = Date.now();
+    if (now - (meta.lastChatAt || 0) < CHAT_THROTTLE_MS) {
+      socket.emit("error-message", { message: "Slow down. Please wait before sending next message." });
+      return;
+    }
+
     const message = sanitizeMessage(payload.message);
     if (!message) {
       return;
     }
 
+    meta.lastChatAt = now;
     pushChat(game, meta.name, message, false);
     emitGameState(game);
   });
