@@ -256,27 +256,32 @@ function updateFullscreenButton() {
   }
 
   const supported = Boolean(document.fullscreenEnabled);
-  const active = document.fullscreenElement === refs.board;
+  const active = document.fullscreenElement === refs.gameShell;
 
   refs.fullscreenBtn.disabled = !supported;
   refs.fullscreenBtn.textContent = active ? "⤫" : "⛶";
-  refs.fullscreenBtn.title = active ? "Exit board fullscreen" : "Board fullscreen";
+  refs.fullscreenBtn.title = active ? "Exit fullscreen" : "Enter fullscreen";
   document.body.classList.toggle("is-fullscreen", active);
 }
 
 async function toggleFullscreen() {
-  if (!document.fullscreenEnabled || !refs.board) {
+  if (!document.fullscreenEnabled || !refs.gameShell) {
     showToast("Fullscreen is not supported on this device.");
     return;
   }
 
+  if (!state.roomCode) {
+    showToast("Join a room first.");
+    return;
+  }
+
   try {
-    if (document.fullscreenElement === refs.board) {
+    if (document.fullscreenElement === refs.gameShell) {
       await document.exitFullscreen();
       return;
     }
-    await refs.board.requestFullscreen({ navigationUI: "hide" });
-    showToast("Board fullscreen enabled. Esc dabake exit karo.");
+    await refs.gameShell.requestFullscreen({ navigationUI: "hide" });
+    showToast("Fullscreen enabled. Board stays square with live info.");
   } catch {
     showToast("Unable to toggle fullscreen.");
   }
@@ -1005,6 +1010,10 @@ function resetToLobby() {
 }
 
 function leaveRoomToLobby(showMessage = true) {
+  if (document.fullscreenElement === refs.gameShell) {
+    document.exitFullscreen().catch(() => {});
+  }
+
   const hadRoom = Boolean(state.roomCode);
   if (hadRoom) {
     socket.emit("leave-room");
