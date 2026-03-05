@@ -612,6 +612,22 @@ body.in-game .game-shell {
   contain: layout paint;
 }
 
+.board:fullscreen {
+  width: min(100vw, 100dvh);
+  height: min(100vw, 100dvh);
+  max-width: 100dvh;
+  max-height: 100dvh;
+  margin: auto;
+  border-radius: 0;
+  border-width: 0;
+  outline: none;
+  box-shadow: none;
+}
+
+.board:fullscreen::backdrop {
+  background: radial-gradient(circle at 20% 20%, #122a47 0%, #070d16 66%);
+}
+
 .square {
   appearance: none;
   border: 0;

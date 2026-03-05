@@ -255,26 +255,27 @@ function updateFullscreenButton() {
   }
 
   const supported = Boolean(document.fullscreenEnabled);
-  const active = document.fullscreenElement === refs.appShell;
+  const active = document.fullscreenElement === refs.board;
 
   refs.fullscreenBtn.disabled = !supported;
   refs.fullscreenBtn.textContent = active ? "⤫" : "⛶";
-  refs.fullscreenBtn.title = active ? "Exit fullscreen" : "Enter fullscreen";
+  refs.fullscreenBtn.title = active ? "Exit board fullscreen" : "Board fullscreen";
   document.body.classList.toggle("is-fullscreen", active);
 }
 
 async function toggleFullscreen() {
-  if (!document.fullscreenEnabled || !refs.appShell) {
+  if (!document.fullscreenEnabled || !refs.board) {
     showToast("Fullscreen is not supported on this device.");
     return;
   }
 
   try {
-    if (document.fullscreenElement === refs.appShell) {
+    if (document.fullscreenElement === refs.board) {
       await document.exitFullscreen();
       return;
     }
-    await refs.appShell.requestFullscreen({ navigationUI: "hide" });
+    await refs.board.requestFullscreen({ navigationUI: "hide" });
+    showToast("Board fullscreen enabled. Esc dabake exit karo.");
   } catch {
     showToast("Unable to toggle fullscreen.");
   }
@@ -399,7 +400,21 @@ function getDisplayFen() {
 
   const ply = activePly();
   const timeline = Array.isArray(state.gameState.timeline) ? state.gameState.timeline : [];
-  return timeline[ply] || state.gameState.fen;
+  if (timeline[ply]) {
+    return timeline[ply];
+  }
+
+  if (ply === 0 && state.gameState.startFen) {
+    return state.gameState.startFen;
+  }
+
+  const history = state.gameState.history || [];
+  const fallbackMove = history[ply - 1];
+  if (fallbackMove?.fen) {
+    return fallbackMove.fen;
+  }
+
+  return state.gameState.fen;
 }
 
 function getDisplayHistory() {

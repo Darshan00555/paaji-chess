@@ -280,6 +280,7 @@ function buildGameState(game) {
   return {
     roomCode: game.code,
     fen: game.chess.fen(),
+    startFen: timeline[0] || game.chess.fen(),
     pgn: game.chess.pgn(),
     players: {
       white: serializePlayer(game.players.white),
@@ -297,6 +298,7 @@ function buildGameState(game) {
       captured: move.captured || null,
       promotion: move.promotion || null,
       flags: move.flags,
+      fen: timeline[index + 1] || null,
     })),
     timeline,
     captured: computeCaptured(verboseHistory),
